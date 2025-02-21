@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import pyaudio
+
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
@@ -7,11 +9,15 @@ import numpy as np
 from pottsmodel.simulation import mc_step, randomize_grid
 from pottsmodel.visualization import vis_colors, tile_x, tile_y
 
+from stream_audio import grab_audio_and_transform
+
+
 # Variable names roughly follow https://en.wikipedia.org/wiki/Potts_model
 # Set q (number of spin directions), temperature, and grid size.
 Q_SIM = 6
 TEMPERATURE = 1.25
 BETA = 1.0 / TEMPERATURE
+INIT_RANDOM = False
 
 # Grid size. For a square picture, set N = 2M + 2.
 M_GRID = 10
@@ -20,6 +26,7 @@ N_GRID = 20
 N_UPDATE_STEPS = 100
 
 PARAMETER_RANGE_STEPS = 4000
+USE_AUDIO = False
 
 
 def plot_grid_and_return_tiles(s, axes):
@@ -44,6 +51,7 @@ def plot_grid_and_return_tiles(s, axes):
     parameter_dot = axes[1].plot([0.0], [1.0], 's', animated=True)[0]
 
     axes[1].set_ylim([0.45 * TEMPERATURE, 1.55 * TEMPERATURE])
+    axes[1].set_ylabel('temperature')
     axes[1].grid(visible=True)
 
     all_tiles.append(parameter_plot)
@@ -58,12 +66,18 @@ def animate_potts_grid(parameter_index):
     else:
         current_temperature = TEMPERATURE * (1.25 - 0.5 * parameter_index / PARAMETER_RANGE_STEPS)
 
+    if USE_AUDIO:
+        current_temperature = 0.75
+        power_spectrum = grab_audio_and_transform(audio)
+
     current_beta = 1.0 / current_temperature
 
     colors = vis_colors[Q_SIM]
     for i in range(M_GRID):
         for j in range(N_GRID):
             tile_index = i * N_GRID + j
+            if USE_AUDIO:
+                grid[i, j] = (grid[i, j] + int(2.0 * power_spectrum[tile_index])) % Q_SIM
             all_tiles[tile_index].set_color(colors[grid[i, j]])
 
     n_accept = 0
@@ -71,7 +85,11 @@ def animate_potts_grid(parameter_index):
         accept = mc_step(grid, Q_SIM, current_beta, False, M_GRID, N_GRID)
         if accept:
             n_accept += 1
-    print(f'{parameter_index:4d} {current_temperature:8.4f} acceptance ratio: {n_accept / N_UPDATE_STEPS:.3f}')
+    print(
+        f'time = {sim_time[0]:6.0f}, par = {parameter_index:4d}, temp = {current_temperature:6.4f}, '
+        f'acceptance = {n_accept / N_UPDATE_STEPS:.3f}'
+    )
+    sim_time[0] += 1
 
     parameter_y[PARAMETER_RANGE_STEPS + parameter_index] = current_temperature
     all_tiles[-2].set_ydata(parameter_y)
@@ -83,23 +101,32 @@ def animate_potts_grid(parameter_index):
 
 
 if __name__ == '__main__':
+    audio = pyaudio.PyAudio()
+
     grid = np.zeros([M_GRID, N_GRID], dtype=np.int8)
+    sim_time = np.zeros(1)
 
     parameter_x = np.arange(2 * PARAMETER_RANGE_STEPS)
     parameter_y = np.zeros(2 * PARAMETER_RANGE_STEPS)
-    # randomize_grid(grid, Q_SIM, M_GRID, N_GRID)
 
-    fig, axes = plt.subplots(nrows=2, height_ratios=[4, 1])
+    if INIT_RANDOM:
+        randomize_grid(grid, Q_SIM, M_GRID, N_GRID)
+
+    fig, axes = plt.subplots(ncols=2, width_ratios=[5, 2])
 
     all_tiles = plot_grid_and_return_tiles(grid, axes)
 
-    # Interval is the time between animation updates in ms. Set to larger value to slow everything down.
+    # Interval is the time between animation updates in ms.
+    # Set to larger value to slow everything down.
     ani = animation.FuncAnimation(
         fig,
         animate_potts_grid,
         range(-PARAMETER_RANGE_STEPS, PARAMETER_RANGE_STEPS),
-        interval=0, blit=True,
+        interval=0,
+        blit=True,
         repeat=True,
     )
 
     plt.show()
+
+    audio.terminate()
