@@ -44,6 +44,23 @@ def plot_grid(s, q, m_grid, n_grid):
     plt.ylim([2.0, 1.0 * n_grid])
 
 
+def plot_grid_numbers(s, m_grid, n_grid):
+    tile_x_closed = np.concatenate([tile_x, [0.0]])
+    tile_y_closed = np.concatenate([tile_y, [0.0]])
+
+    for i in range(m_grid):
+        for j in range(n_grid):
+            x = tile_x_closed + 2 * i
+            y = tile_y_closed + j
+            plt.plot(x, y, color=Set3_6.mpl_colors[4], linewidth=2.0)
+            plt.text(1.0 + 2 * i, 1.5 + j, f'{s[i, j]}', fontsize=20)
+
+    plt.axis('off')
+    plt.gca().set_aspect('equal')
+    # plt.xlim([0.0, 2.0 * m_grid])
+    # plt.ylim([2.0, 1.0 * n_grid])
+
+
 # Modified from https://stackoverflow.com/questions/11837979/removing-white-space-around-a-saved-image
 def save_figure(filepath, grid, fig=None):
     '''Save the current image with no whitespace'''
@@ -51,10 +68,10 @@ def save_figure(filepath, grid, fig=None):
     if not fig:
         fig = plt.gcf()
 
-    plt.subplots_adjust(0,0,1,1,0,0)
+    plt.subplots_adjust(0, 0, 1, 1, 0, 0)
     for ax in fig.axes:
         ax.axis('off')
-        ax.margins(0,0)
+        ax.margins(0, 0)
         ax.xaxis.set_major_locator(plt.NullLocator())
         ax.yaxis.set_major_locator(plt.NullLocator())
 
